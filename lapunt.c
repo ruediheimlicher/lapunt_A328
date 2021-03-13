@@ -70,8 +70,8 @@ void slaveinit(void)
 {
    LOOPLED_DDR |= (1<<LOOPLED_PIN);
    
-   OSZIDDR |= (1<<OSZIA);
-    OSZIDDR |= (1<<OSZIB);
+   OSZIDDR &= ~(1<<OSZIA);
+   OSZIDDR &= ~(1<<OSZIB);
 
    //LCD
    DDRB |= (1<<LCD_RSDS_PIN);   //Pin 5 von PORT B als Ausgang fuer LCD
@@ -172,6 +172,7 @@ void int0_init(void)
 {
    
    EICRA |= (1<<ISC00 ); // raise int0 on any Change
+   EICRA = 0;
    EIMSK |= (1<<INT0); // enable external int0
    INT0status = 0;
    INT0counter = 0; // begin erster impuls vor WAIT
@@ -183,9 +184,21 @@ ISR(INT0_vect)
 {
    INT0status |=(1<<1);
    RELAIS_PORT &= ~(1<<RELAIS_ENABLE);
-   OSZIBTOG;
+   OSZIATOG;
 
 }
+
+void watchdog_init()
+{
+  // watchdog konfigurieren
+  WDTCSR = (1 << WDCE)|(1 << WDE);  // zunaechst Schutz des Registers aufheben gemaess Datasheet
+  WDTCSR = (1 << WDIE)|(1 << WDP3)|(1 << WDP0);  // Interruptmode an, Zeit auf 8s einstellen
+}
+ISR(WDT_vect)
+{
+   OSZIBTOG;
+}
+
 
 
 void main (void) 
