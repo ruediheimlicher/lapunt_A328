@@ -187,54 +187,103 @@ ISR(INT0_vect)
 
 }
 
+void watchdog_init()
+{
+   cli();
+  // watchdog konfigurieren
+  WDTCSR = (1 << WDCE)|(1 << WDE);  // zunaechst Schutz des Registers aufheben gemaess Datasheet
+ // WDTCSR = (1 << WDIE)|(1 << WDP3)|(1 << WDP0);  // Interruptmode an, Zeit auf 8s einstellen
+   WDTCSR = (1 << WDIE)|(1 << WDP2)|(1 << WDP1) |(1 << WDP0);  // Interruptmode an, Zeit auf 1s einstellen
+   sei();
+}
+
+ISR(WDT_vect)
+{
+   
+   OSZIBTOG;
+   INT0status |=(1<<1);
+   RELAIS_PORT &= ~(1<<RELAIS_ENABLE);
+   if (INT0_PIN & (1<<INT0_STATUS)) // Pin ist HI
+   {
+      RELAIS_PORT |= (1<<RELAIS_ON); // ON-Spule EIN
+   }
+   else
+   {
+      RELAIS_PORT |= (1<<RELAIS_OFF);// ON-Spule EIN
+   }
+}
 
 void main (void) 
 {
    /* INITIALIZE */
+   watchdog_init();
    
 //   lcd_initialize(LCD_FUNCTION_8x2, LCD_CMD_ENTRY_INC, LCD_CMD_ON);
 //   lcd_puts("Guten Tag\0");
 //   lcd_cls();
 //   lcd_puts("READY\0");
-   timer2(4); // 128 ca. 130ms
    
-   int0_init();
+//   timer2(4); // 128 ca. 130ms
+   
+//   int0_init();
    
    slaveinit();
    
 //   lcd_gotoxy(16,0);
 //   _delay_ms(100);
 //   int i=0;
+   set_sleep_mode(SLEEP_MODE_PWR_DOWN);  //  SLEEP_MODE_PWR_SAVE SLEEP_MODE_PWR_DOWN
+
    sei();
    
-//   MCUCR |= (1<<SE);
-//   MCUCR |= (1<<SM1);
-//   MCUCR |= (1<<SE);
-
-//  set_sleep_mode(SLEEP_MODE_PWR_DOWN); 
 #pragma mark while
    while (1) 
    {
-      //OSZIBTOG;
-      
-      loopCount0 ++;
-      if (loopCount0 >=0x00FF)
+        if (INT0status & (1<<1))  // interrupt am laufen
+          {
+             OSZIATOG;
+             INT0counter++;
+             if (INT0counter > IMPULS_WAIT)
+             {
+                if (INT0_PIN & (1<<INT0_STATUS)) // Pin ist HI
+                 {
+                    RELAIS_PORT |= (1<<RELAIS_ON); // ON-Spule EIN
+                 }
+                 else
+                 {
+                    RELAIS_PORT |= (1<<RELAIS_OFF);// ON-Spule AUS
+                 }
+             }
+             
+             if (INT0counter > IMPULS_MAX)// Ereignis fertig
+             {
+      //          INT0status &= ~(1<<1);
+                RELAIS_PORT &= ~(1<<RELAIS_ON); // ON-Spule AUS
+                RELAIS_PORT &= ~(1<<RELAIS_OFF); // ON-Spule AUS
+                
+       //         RELAIS_PORT |= (1<<RELAIS_ENABLE); // enable OFF
+                
+                INT0counter = 0; // reset auf WAIT, Pause zwischen impulsen
+                impulscounter ++;
+             }
+             
+             
+             if (impulscounter >= ANZAHL_IMPULSE)
+             {
+                INT0status &= ~(1<<1);
+                impulscounter = 0;
+                RELAIS_PORT |= (1<<RELAIS_ENABLE); // enable OFF
+                //        MCUCR |= (1<<SM1);
+                //        MCUCR |= (1<<SM0);
+                //MCUCR = 0;
+             }
+          }
+      else
       {
-         LOOPLED_PORT ^= (1<<LOOPLED_PIN);
-         loopCount1++;
-         
-         if ((loopCount1 >0x0008) )
-         {
-            loopCount1=0;
-            uint8_t index=0;
-
-         }
-         
-         loopCount0 =0;
+         sleep_mode();
       }
-      
    }
    
    
-   return 0;
+   return ;
 }
